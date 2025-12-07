@@ -11,10 +11,11 @@ load_dotenv()
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "hostel-db"),  # use docker service name
-    "user": os.getenv("DB_USER", "root"),
+    "user": os.getenv("DB_USER", "hostel"),
     "password": os.getenv("DB_PASSWORD", "admin@123"),
     "database": os.getenv("DB_NAME", "hostel_db"),
     "port": int(os.getenv("DB_PORT", 3306)),
+    "ssl_disabled": True
 }
 
 # Create connection pool
