@@ -1,19 +1,21 @@
-name: Build and Push Backend Image
+name: Build, Push & Deploy Backend to EKS
 
 on:
   push:
     branches:
-      - main  # Trigger on pushes to main branch
-  workflow_dispatch:   # Allow manual trigger from GitHub UI
+      - main
+  workflow_dispatch:
 
 jobs:
-  build-and-push:
+  build-push-deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout Code
       - name: Checkout source code
         uses: actions/checkout@v3
 
+      # 2️⃣ Configure AWS Credentials
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -21,18 +23,45 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      # 3️⃣ Login to ECR
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push Docker image
+      # 4️⃣ Build, Tag & Push Image
+      - name: Build, Tag, and Push Docker Image to ECR
         env:
           ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
         run: |
           IMAGE_TAG=${GITHUB_SHA}
+
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # 5️⃣ Update Kubeconfig
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+          --name ${{ secrets.EKS_CLUSTER_NAME }} \
+          --region ${{ secrets.AWS_REGION }}
+
+      # 6️⃣ Deploy App to EKS
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f hostel-app-deployment.yml
+          kubectl apply -f hostel-service.yml
+
+      # 7️⃣ Update Image in Deployment (Rolling Update)
+      - name: Update image in deployment
+        run: |
+          kubectl set image deployment/hostel-app-deployment \
+          hostel-app=${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest \
+          -n default
+
+      # 8️⃣ Verify Rollout
+      - name: Verify Rollout
+        run: |
+          kubectl rollout status deployment/hostel-app-deployment -n default
