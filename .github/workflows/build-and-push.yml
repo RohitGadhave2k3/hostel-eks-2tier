@@ -53,7 +53,6 @@ jobs:
           kubectl apply -f hostel-app-deployment.yml
           kubectl apply -f hostel-db-deployment.yml
           kubectl apply -f hostel-service.yml
-          kubectl apply -f mariadb.yml
 
       # 7️⃣ Rolling Update App Image ✅ (FIXED)
       - name: Update Image in Deployment
